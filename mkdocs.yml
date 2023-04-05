@@ -1,0 +1,13 @@
+site_name: Unofficial Discord API docs
+
+theme:
+  name: material
+
+  palette:
+    scheme: slate
+
+extra:
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
