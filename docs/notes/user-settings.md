@@ -2,7 +2,9 @@
 
 ## Explanation
 
-Endpoint: `/users/@me/settings-proto/:id`
+I refer to these resourses as "setting store".
+
+### Supported setting store IDs
 
 | Id | Type                            | Description                                                               |
 |----|---------------------------------|---------------------------------------------------------------------------|
@@ -10,297 +12,469 @@ Endpoint: `/users/@me/settings-proto/:id`
 | 2  | FRECENCY_AND_FAVORITES_SETTINGS | Frecency & favorites of emojis, stickers, GIFs, application commands, etc |
 | 3  | TEST_SETTINGS                   |                                                                           |
 
+
+### GET `/users/@me/settings-proto/:id`
+
+Returns setting store from database
+
+??? info "Request/response specification"
+    Response:
+    ``` json title="response.json" linenums="1"
+    {
+        "settings": "protobuf-encoded data"
+    }
+    ```
+
+??? info "Example request/response"
+    Example response:
+    ``` json title="example-response.json" linenums="1"
+    {
+        "settings": "IhYKFP////////////////////////8P"
+    }
+    ```
+
+    Decoded response:
+    ``` js title="example-response-decoded.json" linenums="1"
+    PreloadedUserSettings {
+        userContent: UserContentSettings {
+            dismissedContents: <Buffer ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 0f>
+        }
+    }
+    ```
+
+??? info "Example route pseudocode"
+    ``` js title="store-get.js" linenums="1"
+    server.patch("/api/v9/users/@me/settings-proto/:id", (request, response) => {
+        // if :id == 1
+        const result = "protobuf-encoded data"; // SELECT preloaded_user_settings FROM users WHERE id = ${request.user.id}
+        response.json({ settings: result });
+    });
+    ```
+
+### PATCH `/users/@me/settings-proto/:id`
+
+Merges setting store provided in body, with setting store stored in database, and returns modified setting store
+
+??? info "Request/response specification"
+    Request:
+    ``` json title="request.json" linenums="1"
+    {
+        "settings": "protobuf-encoded data"
+    }
+    ```
+
+    Response:
+    ``` json title="response.json" linenums="1"
+    {
+        "settings": "protobuf-encoded data"
+    }
+    ```
+
+??? info "Example request/response"
+    Assuming that database state is "IhYKFP////////////////////////8P"
+
+    Example request:
+    ``` json title="example-request.json" linenums="1"
+    {
+        "settings": "WgoKCAoGb25saW5l"
+    }
+    ```
+
+    Decoded request:
+    ``` title="example-request-decoded.json" linenums="1"
+    PreloadedUserSettings {
+        status: StatusSettings {
+            status: StringValue {
+                value: 'online'
+            }
+        }
+    }
+    ```
+
+    Example response:
+    ``` json title="example-response.json" linenums="1"
+    {
+        "settings": "IhYKFP////////////////////////8PWgoKCAoGb25saW5l"
+    }
+    ```
+
+    Decoded response:
+    ``` title="example-response-decoded.json" linenums="1"
+    {
+        userContent: UserContentSettings {
+            dismissedContents: <Buffer ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 0f>
+        },
+
+        status: StatusSettings {
+            status: StringValue {
+                value: 'online'
+            }
+        }
+    }
+    ```
+
+??? info "Example merging code"
+    Uses [protobuf.js](https://github.com/protobufjs/protobuf.js/)
+
+    ``` js title="merge.js" linenums="1"
+    import { loadSync } from "protobufjs";
+
+    /////
+
+    const SETTINGS_PROTO =
+        loadSync("settings.proto"); // file provided below, in ".proto specification" section
+
+    const PRELOADED_USER_SETTINGS =
+        SETTINGS_PROTO.lookupType("discord_protos.discord_users.v1.PreloadedUserSettings");
+
+    const FRECENCY_USER_SETTINGS =
+        SETTINGS_PROTO.lookupType("discord_protos.discord_users.v1.FrecencyUserSettings");
+
+    /////
+
+    function mergeSettings(type, ...args) {
+        const new_settings = {};
+
+        /////
+
+        for (const arg of args) {
+            Object.assign(new_settings, type.decode(Buffer.from(arg, "base64")));
+        }
+
+        /////
+
+        return Buffer.from(type.encode(new_settings).finish()).toString("base64");
+    }
+
+    /////
+
+    // merge above example database state and request
+    // prints: IhYKFP////////////////////////8PWgoKCAoGb25saW5l
+    console.log(mergeSettings(PRELOADED_USER_SETTINGS, "IhYKFP////////////////////////8P", "WgoKCAoGb25saW5l"));
+    ```
+
+??? info "Example route pseudocode"
+    ``` js title="store-patch.js" linenums="1"
+    server.patch("/api/v9/users/@me/settings-proto/:id", (request, response) => {
+        // if :id == 1
+        const result = "protobuf-encoded data"; // SELECT preloaded_user_settings FROM users WHERE id = ${request.user.id}
+        const merged = mergeSettings(PRELOADED_USER_SETTINGS, result, request.body.settings);
+        // UPDATE users SET preloaded_user_settings = ${merged} WHERE id = ${request.user.id}
+        response.json({ settings: merged });
+    });
+    ```
+
+### Gateway "READY"
+
+On READY event, state of preloaded_user_settings must be sent to client. Or else, no settings will be present on client (all settings will be in default state).
+
+??? info "Example pseudocode"
+    ``` js title="store-ready.js" linenums="1"
+    ws.send({
+        ...
+        v: 9,
+        user: {
+            // user info
+        },
+        user_settings_proto: "protobuf-encoded data", // SELECT preloaded_user_settings FROM users WHERE id = ${ws.user.id}
+        session_id: "123456",
+        ...
+    });
+    ```
+
 ## .proto specification
 
-For `PRELOADED_USER_SETTINGS` use `message PreloadedUserSettings`  
-For `FRECENCY_AND_FAVORITES_SETTINGS` use `message FrecencyUserSettings`  
+For `PRELOADED_USER_SETTINGS` use `discord_protos.discord_users.v1.PreloadedUserSettings`  
+For `FRECENCY_AND_FAVORITES_SETTINGS` use `discord_protos.discord_users.v1.FrecencyUserSettings`  
 
-```protobuf
-syntax = "proto3";
-package discord_protos.discord_users.v1;
+??? note "Specification"
+    ``` protobuf title="settings.proto" linenums="1"
+    syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
+    package discord_protos.discord_users.v1;
 
-enum GIFType {
-    NONE = 0;
-    IMAGE = 1;
-    VIDEO = 2;
-}
+    import "google/protobuf/timestamp.proto";
+    import "google/protobuf/wrappers.proto";
 
-enum InboxTab {
-    UNSPECIFIED = 0;
-    MENTIONS = 1;
-    UNREADS = 2;
-    TODOS = 3;
-    FOR_YOU = 4;
-}
+    enum GIFType {
+        NONE = 0;
+        IMAGE = 1;
+        VIDEO = 2;
+    }
 
-enum GuildActivityStatusRestrictionDefault {
-    OFF = 0;
-    ON_FOR_LARGE_GUILDS = 1;
-}
+    enum InboxTab {
+        UNSPECIFIED = 0;
+        MENTIONS = 1;
+        UNREADS = 2;
+        TODOS = 3;
+        FOR_YOU = 4;
+    }
 
-enum FavoriteChannelType {
-    UNSET_FAVORITE_CHANNEL_TYPE = 0;
-    REFERENCE_ORIGINAL = 1;
-    CATEGORY = 2;
-}
+    enum GuildActivityStatusRestrictionDefault {
+        OFF = 0;
+        ON_FOR_LARGE_GUILDS = 1;
+    }
 
-enum Theme {
-    UNSET = 0;
-    DARK = 1;
-    LIGHT = 2;
-}
+    enum FavoriteChannelType {
+        UNSET_FAVORITE_CHANNEL_TYPE = 0;
+        REFERENCE_ORIGINAL = 1;
+        CATEGORY = 2;
+    }
 
-message FrecencyUserSettings {
-    discord_protos.discord_users.v1.Versions versions = 1;
-    discord_protos.discord_users.v1.FavoriteGIFs favorite_gifs = 2;
-    discord_protos.discord_users.v1.FavoriteStickers favorite_stickers = 3;
-    discord_protos.discord_users.v1.StickerFrecency sticker_frecency = 4;
-    discord_protos.discord_users.v1.FavoriteEmojis favorite_emojis = 5;
-    discord_protos.discord_users.v1.EmojiFrecency emoji_frecency = 6;
-    discord_protos.discord_users.v1.ApplicationCommandFrecency application_command_frecency = 7;
-}
+    enum Theme {
+        UNSET = 0;
+        DARK = 1;
+        LIGHT = 2;
+    }
 
-message FavoriteGIFs {
-    map<string, discord_protos.discord_users.v1.FavoriteGIF> gifs = 1;
-    bool hide_tooltip = 2;
-}
+    message FrecencyUserSettings {
+        discord_protos.discord_users.v1.Versions versions = 1;
+        discord_protos.discord_users.v1.FavoriteGIFs favorite_gifs = 2;
+        discord_protos.discord_users.v1.FavoriteStickers favorite_stickers = 3;
+        discord_protos.discord_users.v1.StickerFrecency sticker_frecency = 4;
+        discord_protos.discord_users.v1.FavoriteEmojis favorite_emojis = 5;
+        discord_protos.discord_users.v1.EmojiFrecency emoji_frecency = 6;
+        discord_protos.discord_users.v1.ApplicationCommandFrecency application_command_frecency = 7;
+    }
 
-message FavoriteGIF {
-    discord_protos.discord_users.v1.GIFType format = 1;
-    string src = 2;
-    uint32 width = 3;
-    uint32 height = 4;
-    uint32 order = 5;
-}
+    message FavoriteGIFs {
+        map<string, discord_protos.discord_users.v1.FavoriteGIF> gifs = 1;
+        bool hide_tooltip = 2;
+    }
 
-message FavoriteStickers {
-    repeated fixed64 sticker_ids = 1;
-}
+    message FavoriteGIF {
+        discord_protos.discord_users.v1.GIFType format = 1;
+        string src = 2;
+        uint32 width = 3;
+        uint32 height = 4;
+        uint32 order = 5;
+    }
 
-message StickerFrecency {
-    map<fixed64, discord_protos.discord_users.v1.FrecencyItem> stickers = 1;
-}
+    message FavoriteStickers {
+        repeated fixed64 sticker_ids = 1;
+    }
 
-message FavoriteEmojis {
-    repeated string emojis = 1 [packed = false];
-}
+    message StickerFrecency {
+        map<fixed64, discord_protos.discord_users.v1.FrecencyItem> stickers = 1;
+    }
 
-message EmojiFrecency {
-    map<string, discord_protos.discord_users.v1.FrecencyItem> emojis = 1;
-}
+    message FavoriteEmojis {
+        repeated string emojis = 1 [packed = false];
+    }
 
-message ApplicationCommandFrecency {
-    map<string, discord_protos.discord_users.v1.FrecencyItem> application_commands = 1;
-}
+    message EmojiFrecency {
+        map<string, discord_protos.discord_users.v1.FrecencyItem> emojis = 1;
+    }
 
-message FrecencyItem {
-    uint32 total_uses = 1;
-    repeated uint64 recent_uses = 2;
-    int32 frecency = 3;
-    int32 score = 4;
-}
+    message ApplicationCommandFrecency {
+        map<string, discord_protos.discord_users.v1.FrecencyItem> application_commands = 1;
+    }
 
-message PreloadedUserSettings {
-    discord_protos.discord_users.v1.Versions versions = 1;
-    discord_protos.discord_users.v1.InboxSettings inbox = 2;
-    discord_protos.discord_users.v1.AllGuildSettings guilds = 3;
-    discord_protos.discord_users.v1.UserContentSettings user_content = 4;
-    discord_protos.discord_users.v1.VoiceAndVideoSettings voice_and_video = 5;
-    discord_protos.discord_users.v1.TextAndImagesSettings text_and_images = 6;
-    discord_protos.discord_users.v1.NotificationSettings notifications = 7;
-    discord_protos.discord_users.v1.PrivacySettings privacy = 8;
-    discord_protos.discord_users.v1.DebugSettings debug = 9;
-    discord_protos.discord_users.v1.GameLibrarySettings game_library = 10;
-    discord_protos.discord_users.v1.StatusSettings status = 11;
-    discord_protos.discord_users.v1.LocalizationSettings localization = 12;
-    discord_protos.discord_users.v1.AppearanceSettings appearance = 13;
-    discord_protos.discord_users.v1.GuildFolders guild_folders = 14;
-    discord_protos.discord_users.v1.Favorites favorites = 15;
-    discord_protos.discord_users.v1.AudioSettings audio_context_settings = 16;
-    discord_protos.discord_users.v1.CommunitiesSettings communities = 17;
-}
+    message FrecencyItem {
+        uint32 total_uses = 1;
+        repeated uint64 recent_uses = 2;
+        int32 frecency = 3;
+        int32 score = 4;
+    }
 
-message InboxSettings {
-    discord_protos.discord_users.v1.InboxTab current_tab = 1;
-    bool viewed_tutorial = 2;
-}
+    message PreloadedUserSettings {
+        discord_protos.discord_users.v1.Versions versions = 1;
+        discord_protos.discord_users.v1.InboxSettings inbox = 2;
+        discord_protos.discord_users.v1.AllGuildSettings guilds = 3;
+        discord_protos.discord_users.v1.UserContentSettings user_content = 4;
+        discord_protos.discord_users.v1.VoiceAndVideoSettings voice_and_video = 5;
+        discord_protos.discord_users.v1.TextAndImagesSettings text_and_images = 6;
+        discord_protos.discord_users.v1.NotificationSettings notifications = 7;
+        discord_protos.discord_users.v1.PrivacySettings privacy = 8;
+        discord_protos.discord_users.v1.DebugSettings debug = 9;
+        discord_protos.discord_users.v1.GameLibrarySettings game_library = 10;
+        discord_protos.discord_users.v1.StatusSettings status = 11;
+        discord_protos.discord_users.v1.LocalizationSettings localization = 12;
+        discord_protos.discord_users.v1.AppearanceSettings appearance = 13;
+        discord_protos.discord_users.v1.GuildFolders guild_folders = 14;
+        discord_protos.discord_users.v1.Favorites favorites = 15;
+        discord_protos.discord_users.v1.AudioSettings audio_context_settings = 16;
+        discord_protos.discord_users.v1.CommunitiesSettings communities = 17;
+    }
 
-message AllGuildSettings {
-    map<fixed64, discord_protos.discord_users.v1.GuildSettings> guilds = 1;
-}
+    message InboxSettings {
+        discord_protos.discord_users.v1.InboxTab current_tab = 1;
+        bool viewed_tutorial = 2;
+    }
 
-message GuildSettings {
-    map<fixed64, discord_protos.discord_users.v1.ChannelSettings> channels = 1;
-    uint32 hub_progress = 2;
-    uint32 guild_onboarding_progress = 3;
-    google.protobuf.Timestamp guild_recents_dismissed_at = 4;
-    bytes dismissed_guild_content = 5;
-}
+    message AllGuildSettings {
+        map<fixed64, discord_protos.discord_users.v1.GuildSettings> guilds = 1;
+    }
 
-message ChannelSettings {
-    bool collapsed_in_inbox = 1;
-}
+    message GuildSettings {
+        map<fixed64, discord_protos.discord_users.v1.ChannelSettings> channels = 1;
+        uint32 hub_progress = 2;
+        uint32 guild_onboarding_progress = 3;
+        google.protobuf.Timestamp guild_recents_dismissed_at = 4;
+        bytes dismissed_guild_content = 5;
+    }
 
-message UserContentSettings {
-    bytes dismissed_contents = 1;
-    google.protobuf.StringValue last_dismissed_outbound_promotion_start_date = 2;
-    google.protobuf.Timestamp premium_tier_0_modal_dismissed_at = 3;
-}
+    message ChannelSettings {
+        bool collapsed_in_inbox = 1;
+    }
 
-message VoiceAndVideoSettings {
-    discord_protos.discord_users.v1.VideoFilterBackgroundBlur blur = 1;
-    uint32 preset_option = 2;
-    discord_protos.discord_users.v1.VideoFilterAsset custom_asset = 3;
-    google.protobuf.BoolValue always_preview_video = 5;
-    google.protobuf.UInt32Value afk_timeout = 6;
-    google.protobuf.BoolValue stream_notifications_enabled = 7;
-    google.protobuf.BoolValue native_phone_integration_enabled = 8;
-}
+    message UserContentSettings {
+        bytes dismissed_contents = 1;
+        google.protobuf.StringValue last_dismissed_outbound_promotion_start_date = 2;
+        google.protobuf.Timestamp premium_tier_0_modal_dismissed_at = 3;
+    }
 
-message TextAndImagesSettings {
-    google.protobuf.StringValue diversity_surrogate = 1;
-    google.protobuf.BoolValue use_rich_chat_input = 2;
-    google.protobuf.BoolValue use_thread_sidebar = 3;
-    google.protobuf.StringValue render_spoilers = 4;
-    repeated string emoji_picker_collapsed_sections = 5 [packed = false];
-    repeated string sticker_picker_collapsed_sections = 6 [packed = false];
-    google.protobuf.BoolValue view_image_descriptions = 7;
-    google.protobuf.BoolValue show_command_suggestions = 8;
-    google.protobuf.BoolValue inline_attachment_media = 9;
-    google.protobuf.BoolValue inline_embed_media = 10;
-    google.protobuf.BoolValue gif_auto_play = 11;
-    google.protobuf.BoolValue render_embeds = 12;
-    google.protobuf.BoolValue render_reactions = 13;
-    google.protobuf.BoolValue animate_emoji = 14;
-    google.protobuf.UInt32Value animate_stickers = 15;
-    google.protobuf.BoolValue enable_tts_command = 16;
-    google.protobuf.BoolValue message_display_compact = 17;
-    google.protobuf.UInt32Value explicit_content_filter = 19;
-    google.protobuf.BoolValue view_nsfw_guilds = 20;
-    google.protobuf.BoolValue convert_emoticons = 21;
-    google.protobuf.BoolValue expression_suggestions_enabled = 22;
-    google.protobuf.BoolValue view_nsfw_commands = 23;
-    google.protobuf.BoolValue use_legacy_chat_input = 24;
-}
+    message VoiceAndVideoSettings {
+        discord_protos.discord_users.v1.VideoFilterBackgroundBlur blur = 1;
+        uint32 preset_option = 2;
+        discord_protos.discord_users.v1.VideoFilterAsset custom_asset = 3;
+        google.protobuf.BoolValue always_preview_video = 5;
+        google.protobuf.UInt32Value afk_timeout = 6;
+        google.protobuf.BoolValue stream_notifications_enabled = 7;
+        google.protobuf.BoolValue native_phone_integration_enabled = 8;
+    }
 
-message NotificationSettings {
-    google.protobuf.BoolValue show_in_app_notifications = 1;
-    google.protobuf.BoolValue notify_friends_on_go_live = 2;
-    fixed64 notification_center_acked_before_id = 3;
-}
+    message TextAndImagesSettings {
+        google.protobuf.StringValue diversity_surrogate = 1;
+        google.protobuf.BoolValue use_rich_chat_input = 2;
+        google.protobuf.BoolValue use_thread_sidebar = 3;
+        google.protobuf.StringValue render_spoilers = 4;
+        repeated string emoji_picker_collapsed_sections = 5 [packed = false];
+        repeated string sticker_picker_collapsed_sections = 6 [packed = false];
+        google.protobuf.BoolValue view_image_descriptions = 7;
+        google.protobuf.BoolValue show_command_suggestions = 8;
+        google.protobuf.BoolValue inline_attachment_media = 9;
+        google.protobuf.BoolValue inline_embed_media = 10;
+        google.protobuf.BoolValue gif_auto_play = 11;
+        google.protobuf.BoolValue render_embeds = 12;
+        google.protobuf.BoolValue render_reactions = 13;
+        google.protobuf.BoolValue animate_emoji = 14;
+        google.protobuf.UInt32Value animate_stickers = 15;
+        google.protobuf.BoolValue enable_tts_command = 16;
+        google.protobuf.BoolValue message_display_compact = 17;
+        google.protobuf.UInt32Value explicit_content_filter = 19;
+        google.protobuf.BoolValue view_nsfw_guilds = 20;
+        google.protobuf.BoolValue convert_emoticons = 21;
+        google.protobuf.BoolValue expression_suggestions_enabled = 22;
+        google.protobuf.BoolValue view_nsfw_commands = 23;
+        google.protobuf.BoolValue use_legacy_chat_input = 24;
+    }
 
-message PrivacySettings {
-    google.protobuf.BoolValue allow_activity_party_privacy_friends = 1;
-    google.protobuf.BoolValue allow_activity_party_privacy_voice_channel = 2;
-    repeated fixed64 restricted_guild_ids = 3;
-    bool default_guilds_restricted = 4;
-    bool allow_accessibility_detection = 7;
-    google.protobuf.BoolValue detect_platform_accounts = 8;
-    google.protobuf.BoolValue passwordless = 9;
-    google.protobuf.BoolValue contact_sync_enabled = 10;
-    google.protobuf.UInt32Value friend_source_flags = 11;
-    google.protobuf.UInt32Value friend_discovery_flags = 12;
-    repeated fixed64 activity_restricted_guild_ids = 13;
-    discord_protos.discord_users.v1.GuildActivityStatusRestrictionDefault default_guilds_activity_restricted = 14;
-    repeated fixed64 activity_joining_restricted_guild_ids = 15;
-    repeated fixed64 message_request_restricted_guild_ids = 16;
-    google.protobuf.BoolValue default_message_request_restricted = 17;
-    google.protobuf.BoolValue drops_opted_out = 18;
-    google.protobuf.BoolValue non_spam_retraining_opt_in = 19;
-}
+    message NotificationSettings {
+        google.protobuf.BoolValue show_in_app_notifications = 1;
+        google.protobuf.BoolValue notify_friends_on_go_live = 2;
+        fixed64 notification_center_acked_before_id = 3;
+    }
 
-message DebugSettings {
-    google.protobuf.BoolValue rtc_panel_show_voice_states = 1;
-}
+    message PrivacySettings {
+        google.protobuf.BoolValue allow_activity_party_privacy_friends = 1;
+        google.protobuf.BoolValue allow_activity_party_privacy_voice_channel = 2;
+        repeated fixed64 restricted_guild_ids = 3;
+        bool default_guilds_restricted = 4;
+        bool allow_accessibility_detection = 7;
+        google.protobuf.BoolValue detect_platform_accounts = 8;
+        google.protobuf.BoolValue passwordless = 9;
+        google.protobuf.BoolValue contact_sync_enabled = 10;
+        google.protobuf.UInt32Value friend_source_flags = 11;
+        google.protobuf.UInt32Value friend_discovery_flags = 12;
+        repeated fixed64 activity_restricted_guild_ids = 13;
+        discord_protos.discord_users.v1.GuildActivityStatusRestrictionDefault default_guilds_activity_restricted = 14;
+        repeated fixed64 activity_joining_restricted_guild_ids = 15;
+        repeated fixed64 message_request_restricted_guild_ids = 16;
+        google.protobuf.BoolValue default_message_request_restricted = 17;
+        google.protobuf.BoolValue drops_opted_out = 18;
+        google.protobuf.BoolValue non_spam_retraining_opt_in = 19;
+    }
 
-message GameLibrarySettings {
-    google.protobuf.BoolValue install_shortcut_desktop = 1;
-    google.protobuf.BoolValue install_shortcut_start_menu = 2;
-    google.protobuf.BoolValue disable_games_tab = 3;
-}
+    message DebugSettings {
+        google.protobuf.BoolValue rtc_panel_show_voice_states = 1;
+    }
 
-message GuildFolder {
-    repeated fixed64 guild_ids = 1;
-    google.protobuf.Int64Value id = 2;
-    google.protobuf.StringValue name = 3;
-    google.protobuf.UInt64Value color = 4;
-}
+    message GameLibrarySettings {
+        google.protobuf.BoolValue install_shortcut_desktop = 1;
+        google.protobuf.BoolValue install_shortcut_start_menu = 2;
+        google.protobuf.BoolValue disable_games_tab = 3;
+    }
 
-message FavoriteChannel {
-    string nickname = 1;
-    discord_protos.discord_users.v1.FavoriteChannelType type = 2;
-    uint32 position = 3;
-    fixed64 parent_id = 4;
-}
+    message GuildFolder {
+        repeated fixed64 guild_ids = 1;
+        google.protobuf.Int64Value id = 2;
+        google.protobuf.StringValue name = 3;
+        google.protobuf.UInt64Value color = 4;
+    }
 
-message AudioContextSetting {
-    bool muted = 1;
-    float volume = 2;
-    fixed64 modified_at = 3;
-}
+    message FavoriteChannel {
+        string nickname = 1;
+        discord_protos.discord_users.v1.FavoriteChannelType type = 2;
+        uint32 position = 3;
+        fixed64 parent_id = 4;
+    }
 
-message Versions {
-    uint32 client_version = 1;
-    uint32 server_version = 2;
-    uint32 data_version = 3;
-}
+    message AudioContextSetting {
+        bool muted = 1;
+        float volume = 2;
+        fixed64 modified_at = 3;
+    }
 
-message StatusSettings {
-    google.protobuf.StringValue status = 1;
-    discord_protos.discord_users.v1.CustomStatus custom_status = 2;
-    google.protobuf.BoolValue show_current_game = 3;
-}
+    message Versions {
+        uint32 client_version = 1;
+        uint32 server_version = 2;
+        uint32 data_version = 3;
+    }
 
-message LocalizationSettings {
-    google.protobuf.StringValue locale = 1;
-    google.protobuf.Int32Value timezone_offset = 2;
-}
+    message StatusSettings {
+        google.protobuf.StringValue status = 1;
+        discord_protos.discord_users.v1.CustomStatus custom_status = 2;
+        google.protobuf.BoolValue show_current_game = 3;
+    }
 
-message AppearanceSettings {
-    discord_protos.discord_users.v1.Theme theme = 1;
-    bool developer_mode = 2;
-    discord_protos.discord_users.v1.ClientThemeSettings client_theme_settings = 3;
-}
+    message LocalizationSettings {
+        google.protobuf.StringValue locale = 1;
+        google.protobuf.Int32Value timezone_offset = 2;
+    }
 
-message GuildFolders {
-    repeated discord_protos.discord_users.v1.GuildFolder folders = 1;
-    repeated fixed64 guild_positions = 2;
-}
+    message AppearanceSettings {
+        discord_protos.discord_users.v1.Theme theme = 1;
+        bool developer_mode = 2;
+        discord_protos.discord_users.v1.ClientThemeSettings client_theme_settings = 3;
+    }
 
-message Favorites {
-    map<fixed64, discord_protos.discord_users.v1.FavoriteChannel> favorite_channels = 1;
-    bool muted = 2;
-}
+    message GuildFolders {
+        repeated discord_protos.discord_users.v1.GuildFolder folders = 1;
+        repeated fixed64 guild_positions = 2;
+    }
 
-message AudioSettings {
-    map<fixed64, discord_protos.discord_users.v1.AudioContextSetting> user = 1;
-    map<fixed64, discord_protos.discord_users.v1.AudioContextSetting> stream = 2;
-}
+    message Favorites {
+        map<fixed64, discord_protos.discord_users.v1.FavoriteChannel> favorite_channels = 1;
+        bool muted = 2;
+    }
 
-message CommunitiesSettings {
-    google.protobuf.BoolValue disable_home_auto_nav = 1;
-}
+    message AudioSettings {
+        map<fixed64, discord_protos.discord_users.v1.AudioContextSetting> user = 1;
+        map<fixed64, discord_protos.discord_users.v1.AudioContextSetting> stream = 2;
+    }
 
-message VideoFilterBackgroundBlur {
-    bool use_blur = 1;
-}
+    message CommunitiesSettings {
+        google.protobuf.BoolValue disable_home_auto_nav = 1;
+    }
 
-message VideoFilterAsset {
-    fixed64 id = 1;
-    string asset_hash = 2;
-}
+    message VideoFilterBackgroundBlur {
+        bool use_blur = 1;
+    }
 
-message CustomStatus {
-    string text = 1;
-    fixed64 emoji_id = 2;
-    string emoji_name = 3;
-    fixed64 expires_at_ms = 4;
-}
+    message VideoFilterAsset {
+        fixed64 id = 1;
+        string asset_hash = 2;
+    }
 
-message ClientThemeSettings {
-    google.protobuf.UInt64Value primary_color = 1;
-}
-```
+    message CustomStatus {
+        string text = 1;
+        fixed64 emoji_id = 2;
+        string emoji_name = 3;
+        fixed64 expires_at_ms = 4;
+    }
+
+    message ClientThemeSettings {
+        google.protobuf.UInt64Value primary_color = 1;
+    }
+    ```

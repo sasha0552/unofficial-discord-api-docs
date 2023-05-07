@@ -6,8 +6,21 @@ theme:
   palette:
     scheme: slate
 
+  features:
+    - content.code.copy
+
 extra:
   generator: false
 
 extra_css:
   - stylesheets/extra.css
+
+markdown_extensions:
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
