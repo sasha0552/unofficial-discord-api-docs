@@ -1,3 +1,5 @@
+https://sasha0552.github.io/unofficial-discord-api-docs/
+
 # Introduction
 
 Some Discord API documentation from the reverse engineered Discord client build as of 2023-01-01 (Stable 165485)
