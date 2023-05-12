@@ -2,16 +2,23 @@ https://sasha0552.github.io/unofficial-discord-api-docs/
 
 # Introduction
 
-Some Discord API documentation from the reverse engineered Discord client build as of 2023-01-01 (Stable 165485)
+This is an *unofficial* Discord API documentation created by reverse engineering the official Discord client build.
 
-My goal is build fully discord-compatible backend (because I can't do frontend), to use as my own messenger.  
+Current reverse engineered version of the official client is `2023-01-01 (Stable 165485)`.
 
-If you want to help me in the reverse engeenering, I can give you an entire client build (I wrote some tools for downloading discord client from discord.com, so client can be used completely offline), and access to backend API for testing.  
-Also, if you have any questions about discord client/backend, you can also contact me. And I'll try to answer.  
+My goal is to build a fully Discord-compatible backend server (because I'm not a frontend developer) with possibility to use it as own self-hosted messenger.  
 
-You can contact me in Discord:  
-My username#discriminator: `sasha0552#5178`.  
-Also, I created [guild](https://discord.gg/SX8dvXuTfR) for this.  
+# Contributing to the Project
+
+If you want to help me in the reverse engineering process, I can give you an entire client build (I wrote some tools for downloading the Discord client from discord.com website, so the client can be used completely offline), and access to a test backend endpoint.  
+
+
+Also, if you have any questions about Discord client or backend, you're free to contact me. I'll try my best to answer you.  
+
+## Contacts
+
+Discord: `sasha0552#5178`.  
+I've created a [guild](https://discord.gg/SX8dvXuTfR) for this.  
 
 ![image](images/main-1.png)
 ![image](images/main-2.png)
