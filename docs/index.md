@@ -6,7 +6,7 @@ This is an *unofficial* Discord API documentation created by reverse engineering
 
 Current reverse engineered version of the official client is `2023-01-01 (Stable 165485)`.
 
-My goal is to build a fully Discord-compatible backend server (because I'm not a frontend developer) with possibility to use it as own self-hosted messenger.  
+My goal is to build a fully Discord-compatible backend server (because I'm not a frontend developer) with possibility to use it as my own self-hosted messenger.  
 
 # Contributing to the Project
 
@@ -17,8 +17,13 @@ Also, if you have any questions about Discord client or backend, you're free to 
 
 ## Contacts
 
-Discord: `sasha0552#5178`.  
-I've created a [guild](https://discord.gg/SX8dvXuTfR) for this.  
+Discord: `sasha0552#5178`.
+
+
+I've also created a [guild](https://discord.gg/SX8dvXuTfR). Join it for further discussions.
+
+# Screenshots
+
 
 ![image](images/main-1.png)
 ![image](images/main-2.png)
