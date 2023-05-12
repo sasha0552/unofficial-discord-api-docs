@@ -2,15 +2,15 @@
 
 ## Explanation
 
-I refer to these resourses as "setting store".
+I refer to these resourses as **setting store**.
 
 ### Supported setting store IDs
 
 | Id | Type                            | Description                                                               |
 |----|---------------------------------|---------------------------------------------------------------------------|
-| 1  | PRELOADED_USER_SETTINGS         | Discord Client settings (language, theme, etc)                            |
-| 2  | FRECENCY_AND_FAVORITES_SETTINGS | Frecency & favorites of emojis, stickers, GIFs, application commands, etc |
-| 3  | TEST_SETTINGS                   |                                                                           |
+| 1  | `PRELOADED_USER_SETTINGS`         | Discord Client settings (language, theme, etc)                            |
+| 2  | `FRECENCY_AND_FAVORITES_SETTINGS` | Frecency & favorites of emojis, stickers, GIFs, application commands, etc |
+| 3  | `TEST_SETTINGS`                   |                                                                           |
 
 
 ### GET `/users/@me/settings-proto/:id`
@@ -53,7 +53,7 @@ Returns setting store from database
 
 ### PATCH `/users/@me/settings-proto/:id`
 
-Merges setting store provided in body, with setting store stored in database, and returns modified setting store
+Merges setting store are provided in the body, with the setting store stored in the database, and returns the modified setting store
 
 ??? info "Request/response specification"
     Request:
@@ -166,7 +166,7 @@ Merges setting store provided in body, with setting store stored in database, an
 
 ### Gateway "READY"
 
-On READY event, state of preloaded_user_settings must be sent to client. Or else, no settings will be present on client (all settings will be in default state).
+On `READY` event, state of `preloaded_user_settings` must be sent to the client or no settings will be present on the client (all settings will be in the default state).
 
 ??? info "Example pseudocode"
     ``` js title="store-ready.js" linenums="1"
