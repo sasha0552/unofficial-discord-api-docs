@@ -6,8 +6,8 @@ I refer to these resourses as **setting store**.
 
 ### Supported setting store IDs
 
-| Id | Type                            | Description                                                               |
-|----|---------------------------------|---------------------------------------------------------------------------|
+| Id | Type                              | Description                                                               |
+|----|-----------------------------------|---------------------------------------------------------------------------|
 | 1  | `PRELOADED_USER_SETTINGS`         | Discord Client settings (language, theme, etc)                            |
 | 2  | `FRECENCY_AND_FAVORITES_SETTINGS` | Frecency & favorites of emojis, stickers, GIFs, application commands, etc |
 | 3  | `TEST_SETTINGS`                   |                                                                           |
