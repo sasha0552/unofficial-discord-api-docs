@@ -1,12 +1,12 @@
 # Experiments
 
-[Experiments](https://en.wikipedia.org/wiki/A/B_testing) is used to test features that not yet ready to production.
+[Experiments](https://en.wikipedia.org/wiki/A/B_testing) are used to test the features that aren't ready for production purposes yet.
 
-By default, experiments sent in the READY gateway event, but can be changed manually in the client settings.
+By default, experiments are sent in the `READY` gateway event and they may be enabled/disabled manually in the client settings.
 
-## How to enable manual experiment changing
+## How to enable
 
-The following requirements must be met in order to enable the experiment overrides in the client settings:  
+The following requirements must be met in order to enable the experimental overrides in the client settings:
 
-  1. You're need to be Discord Staff (public_flags = 1 >> 0)
-  2. RELEASE_CHANNEL in GLOBAL_ENV must be "staging"
+  1. You must be the Discord Staff `(public_flags = 1 >> 0)`
+  2. `RELEASE_CHANNEL` in `GLOBAL_ENV` must be `staging`
